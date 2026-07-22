@@ -461,6 +461,97 @@ const LONG_WODS: SeedWod[] = [
   { name: "Murph adaptado", type: "for_time", scoreType: "time", timeCapSeconds: 2400, scheme: "800 m corrida\n50 pull-ups\n100 push-ups\n150 air squats\n800 m corrida\n(particionar como quiser)" },
 ];
 
+// ---------------------------------------------------------------------------
+// Níveis e ciclos (3 níveis × 3 ciclos de 12 semanas)
+// ---------------------------------------------------------------------------
+
+type LevelKey = "iniciante" | "intermediario" | "avancado";
+
+const EASY_SHORT = () =>
+  SHORT_WODS.filter((w) =>
+    ["AMRAP 10", "Tabata Air Squat", "AMRAP 12", "EMOM 12", "For Time 21-15-9", "Intervalos de remo"].includes(
+      w.name,
+    ),
+  );
+
+const LEVELS: Record<
+  LevelKey,
+  {
+    label: string;
+    mainSetsDelta: number;
+    accessorySets: number;
+    rpeDelta: number;
+    restDelta: number;
+    excludeSlugs: string[];
+    minutesDelta: number;
+    shortPool: () => SeedWod[];
+    longPool: () => SeedWod[];
+  }
+> = {
+  iniciante: {
+    label: "Iniciante",
+    mainSetsDelta: -1,
+    accessorySets: 2,
+    rpeDelta: -1,
+    restDelta: 0,
+    // sem levantamento olímpico no 1º ano: padrão ainda em construção
+    excludeSlugs: ["power-clean"],
+    minutesDelta: -10,
+    shortPool: EASY_SHORT,
+    longPool: () => [
+      LONG_WODS[0], // Cindy (escala com ring row/joelhos)
+      HYROX_WODS[1], // Compromised Running
+    ],
+  },
+  intermediario: {
+    label: "Intermediário",
+    mainSetsDelta: 0,
+    accessorySets: 3,
+    rpeDelta: 0,
+    restDelta: 0,
+    excludeSlugs: [],
+    minutesDelta: 0,
+    shortPool: () => SHORT_WODS,
+    longPool: () => [...HYROX_WODS, ...LONG_WODS],
+  },
+  avancado: {
+    label: "Avançado",
+    mainSetsDelta: 1,
+    accessorySets: 4,
+    rpeDelta: 0.5,
+    restDelta: 30,
+    excludeSlugs: [],
+    minutesDelta: 10,
+    shortPool: () => SHORT_WODS,
+    longPool: () => [...HYROX_WODS, ...LONG_WODS],
+  },
+};
+
+// Ênfase de cada ciclo: reps do exercício principal por fase
+const CYCLE_MAIN_REPS: Record<number, { ac: string; int: string; pico: string; foco: string }> = {
+  1: { ac: "10", int: "8", pico: "5", foco: "volume" },
+  2: { ac: "8", int: "6", pico: "4", foco: "força-volume" },
+  3: { ac: "6", int: "5", pico: "3", foco: "força" },
+};
+
+function adjustedPhase(week: number, level: LevelKey, cycle: number): Phase {
+  const p = structuredClone(phaseFor(week));
+  const L = LEVELS[level];
+  const reps = CYCLE_MAIN_REPS[cycle];
+  if (p.name === "acumulação") p.main.reps = reps.ac;
+  if (p.name === "intensificação") p.main.reps = reps.int;
+  if (p.name === "pico") p.main.reps = reps.pico;
+  if (p.name === "teste")
+    p.main.reps =
+      level === "iniciante" ? "8 (teste técnico de 8RM)" : "3-5 (subir até PR)";
+  p.main.sets = Math.max(2, p.main.sets + L.mainSetsDelta);
+  p.accessory.sets = p.name === "deload" ? 2 : L.accessorySets;
+  p.main.rpe = Math.min(9.5, Math.max(5, p.main.rpe + L.rpeDelta));
+  p.accessory.rpe = Math.min(9, Math.max(5, p.accessory.rpe + L.rpeDelta));
+  p.main.rest += L.restDelta;
+  return p;
+}
+
 type DayTemplate = {
   dayOfWeek: number;
   name: string;
@@ -630,23 +721,49 @@ async function main() {
       .from(setLogs)
       .where(isNotNull(setLogs.blockExerciseId));
     if (loggedCount > 0) {
-      console.error(
-        `Abortado: há ${loggedCount} séries logadas na prescrição atual. ` +
-          "Regenerar o programa apagaria esse vínculo — crie um programa novo em vez disso.",
+      // Há treino registrado na prescrição atual: preserva o programa antigo
+      // e cria uma nova versão ao lado (perfis são apontados para ela no final)
+      console.log(
+        `Há ${loggedCount} séries logadas — criando NOVA versão do programa (a antiga fica no histórico).`,
       );
-      process.exit(1);
+    } else {
+      console.log("Regenerando programa (exercícios preservados)…");
+      await db
+        .update(userProfiles)
+        .set({ programId: null })
+        .where(isNotNull(userProfiles.programId));
+      await db.delete(programsTable);
+      await db.execute(
+        sql`select setval(pg_get_serial_sequence('programs','id'), coalesce(max(id),1)) from programs`,
+      );
     }
-    console.log("Regenerando programa (exercícios preservados)…");
-    await db
-      .update(userProfiles)
-      .set({ programId: null })
-      .where(isNotNull(userProfiles.programId));
-    await db.delete(programsTable);
-    await db.execute(sql`select setval(pg_get_serial_sequence('programs','id'), coalesce(max(id),1)) from programs`);
     const rows = await db
       .select({ id: exercises.id, slug: exercises.slug })
       .from(exercises);
     idBySlug = new Map(rows.map((r) => [r.slug, r.id]));
+
+    // Exercícios novos do seed que ainda não existem no banco
+    const missing = EXERCISES.filter((e) => !idBySlug.has(e.slug));
+    if (missing.length > 0) {
+      const insertedNew = await db
+        .insert(exercises)
+        .values(
+          missing.map((e) => ({
+            slug: e.slug,
+            name: e.name,
+            category: e.category,
+            muscles: e.muscles,
+            equipment: e.equipment,
+            instructions: e.instructions,
+            commonMistakes: e.commonMistakes,
+            cadence: e.cadence,
+            isNeglected: e.isNeglected ?? false,
+          })),
+        )
+        .returning({ id: exercises.id, slug: exercises.slug });
+      for (const r of insertedNew) idBySlug.set(r.slug, r.id);
+      console.log(`Exercícios novos adicionados: ${missing.map((m) => m.slug).join(", ")}`);
+    }
   }
   const idOf = (slug: string) => {
     const id = idBySlug.get(slug);
@@ -654,121 +771,187 @@ async function main() {
     return id;
   };
 
-  console.log("Criando programa de 12 semanas…");
-  const [program] = await db
-    .insert(programs)
-    .values({
-      name: "Híbrido 12 semanas — Hipertrofia + CrossFit",
-      description:
-        "5 dias/semana. Periodização: acumulação (1-3), deload (4), intensificação (5-7), deload (8), pico (9-11) e semana de teste/PR (12).",
-      totalWeeks: 12,
-    })
-    .returning();
+  console.log("Criando 9 programas (3 níveis × 3 ciclos de 12 semanas)…");
+  let defaultProgramId: number | null = null;
 
-  for (let week = 1; week <= 12; week++) {
-    const phase = phaseFor(week);
-    for (const [dayIndex, day] of DAYS.entries()) {
-      const [workout] = await db
-        .insert(workouts)
+  for (const level of ["iniciante", "intermediario", "avancado"] as LevelKey[]) {
+    const L = LEVELS[level];
+    for (let cycle = 1; cycle <= 3; cycle++) {
+      const foco = CYCLE_MAIN_REPS[cycle].foco;
+      const [program] = await db
+        .insert(programs)
         .values({
-          programId: program.id,
-          week,
-          dayOfWeek: day.dayOfWeek,
-          name: day.name,
-          focus: day.focus,
-          phase: phase.name,
-          estimatedMinutes:
-            phase.name === "deload" ? day.estimatedMinutes - 15 : day.estimatedMinutes,
-          effortLevel: phase.effort,
-          muscles: day.muscles,
+          name: `Híbrido 12s — ${L.label} · Ciclo ${cycle} (${foco})`,
+          description:
+            `Nível ${L.label.toLowerCase()}, ciclo ${cycle} de 3 (ênfase: ${foco}). ` +
+            "5 dias/semana. Periodização: acumulação (1-3), deload (4), intensificação (5-7), deload (8), pico (9-11) e teste (12).",
+          totalWeeks: 12,
         })
         .returning();
+      if (level === "intermediario" && cycle === 1) defaultProgramId = program.id;
 
-      const blocks: {
-        type: (typeof workoutBlocks.$inferInsert)["type"];
-        title: string;
-        slugs: string[];
-        prescribe?: boolean;
-      }[] = [
-        { type: "alongamento_dinamico", title: "Alongamento dinâmico", slugs: day.dynamic },
-        { type: "mobilidade", title: "Mobilidade", slugs: day.mobility },
-        { type: "aquecimento", title: "Aquecimento", slugs: day.warmup },
-        { type: "hipertrofia", title: day.dayOfWeek === 6 ? "Acessórios" : "Hipertrofia", slugs: [], prescribe: true },
-        { type: "wod", title: "WOD", slugs: [] },
-        { type: "alongamento_final", title: "Alongamento final", slugs: day.finalStretch },
-      ];
-
-      for (const [order, b] of blocks.entries()) {
-        const [block] = await db
-          .insert(workoutBlocks)
-          .values({ workoutId: workout.id, order, type: b.type, title: b.title })
-          .returning();
-
-        if (b.type === "wod") {
-          // Deload: só regenerativo. Semana de teste: leve entre os dias de
-          // 1RM; sábado mantém um benchmark (Cindy) como reteste de condicionamento.
-          const pool =
-            phase.name === "deload" ||
-            (phase.name === "teste" && day.dayOfWeek !== 6)
-              ? RECOVERY_WODS
-              : phase.name === "teste"
-                ? [LONG_WODS[0]]
-                : day.wodPool;
-          const wod = pool[(week + dayIndex) % pool.length];
-          await db.insert(wods).values({
-            blockId: block.id,
-            name: wod.name,
-            type: wod.type,
-            scoreType: wod.scoreType,
-            timeCapSeconds: wod.timeCapSeconds,
-            rounds: wod.rounds,
-            intervalSeconds: wod.intervalSeconds,
-            scheme: wod.scheme,
-          });
-          continue;
-        }
-
-        if (b.prescribe) {
-          await db.insert(blockExercises).values(
-            day.lifts.map(([slug, isMain, repsOverride, liftNotes], i) => {
-              const p = isMain ? phase.main : phase.accessory;
-              return {
-                blockId: block.id,
-                exerciseId: idOf(slug),
-                order: i,
-                sets: p.sets,
-                reps: repsOverride ?? p.reps,
-                restSeconds: p.rest,
-                targetRpe: p.rpe,
-                tempo: EXERCISES.find((e) => e.slug === slug)?.cadence,
-                notes: liftNotes ?? (isMain ? "Exercício principal do dia" : undefined),
-              };
-            }),
-          );
-          continue;
-        }
-
-        // Blocos de preparo/alongamento: 1 "série" por item, sem carga
-        await db.insert(blockExercises).values(
-          b.slugs.map((slug, i) => ({
-            blockId: block.id,
-            exerciseId: idOf(slug),
-            order: i,
-            sets: 1,
-            reps: b.type === "aquecimento" ? "2-3 min" : "30-45s",
-            restSeconds: 0,
-          })),
-        );
-      }
+      await createProgramWorkouts(db, idBySlug, program.id, level, cycle);
+      console.log(`  ✓ ${L.label} · Ciclo ${cycle}`);
     }
   }
 
-  // Reaponta perfis existentes para o programa recém-criado
-  const { userProfiles } = await import("../src/db/schema");
-  await db.update(userProfiles).set({ programId: program.id });
+  // Reaponta perfis existentes para o programa padrão (Intermediário · Ciclo 1)
+  if (defaultProgramId) {
+    const { userProfiles } = await import("../src/db/schema");
+    await db.update(userProfiles).set({ programId: defaultProgramId });
+  }
 
-  console.log("Seed concluído: 60 dias de treino (12 semanas × 5 dias).");
+  console.log("Seed concluído: 9 programas × 60 treinos.");
   process.exit(0);
+}
+
+async function createProgramWorkouts(
+  db: Awaited<ReturnType<typeof getDb>>,
+  idBySlug: Map<string, number>,
+  programId: number,
+  level: LevelKey,
+  cycle: number,
+) {
+  const idOf = (slug: string) => {
+    const id = idBySlug.get(slug);
+    if (!id) throw new Error(`Exercício não encontrado no seed: ${slug}`);
+    return id;
+  };
+  const L = LEVELS[level];
+
+  // Monta tudo em memória e insere em lote (3 statements grandes por
+  // programa em vez de centenas — essencial contra Postgres remoto)
+  type BlockPlan = {
+    type: (typeof workoutBlocks.$inferInsert)["type"];
+    title: string;
+    items: (typeof blockExercises.$inferInsert extends infer T
+      ? Omit<T, "blockId">
+      : never)[];
+    wod: SeedWod | null;
+  };
+  const workoutRows: (typeof workouts.$inferInsert)[] = [];
+  const blockPlans: BlockPlan[][] = []; // por workout, na mesma ordem
+
+  for (let week = 1; week <= 12; week++) {
+    const phase = adjustedPhase(week, level, cycle);
+    for (const [dayIndex, day] of DAYS.entries()) {
+      const lifts = day.lifts.filter(([slug]) => !L.excludeSlugs.includes(slug));
+      workoutRows.push({
+        programId,
+        week,
+        dayOfWeek: day.dayOfWeek,
+        name: day.name,
+        focus: day.focus,
+        phase: phase.name,
+        estimatedMinutes: Math.max(
+          35,
+          day.estimatedMinutes + L.minutesDelta - (phase.name === "deload" ? 15 : 0),
+        ),
+        effortLevel: phase.effort,
+        muscles: day.muscles,
+      });
+
+      const prep = (slugs: string[], type: BlockPlan["type"], title: string): BlockPlan => ({
+        type,
+        title,
+        wod: null,
+        items: slugs.map((slug, i) => ({
+          exerciseId: idOf(slug),
+          order: i,
+          sets: 1,
+          reps: type === "aquecimento" ? "2-3 min" : "30-45s",
+          restSeconds: 0,
+        })),
+      });
+
+      // Deload: só regenerativo. Semana de teste: leve entre os dias de 1RM;
+      // sábado mantém um benchmark (Cindy) como reteste de condicionamento.
+      const pool =
+        phase.name === "deload" || (phase.name === "teste" && day.dayOfWeek !== 6)
+          ? RECOVERY_WODS
+          : phase.name === "teste"
+            ? [LONG_WODS[0]]
+            : day.dayOfWeek === 6
+              ? L.longPool()
+              : L.shortPool();
+
+      blockPlans.push([
+        prep(day.dynamic, "alongamento_dinamico", "Alongamento dinâmico"),
+        prep(day.mobility, "mobilidade", "Mobilidade"),
+        prep(day.warmup, "aquecimento", "Aquecimento"),
+        {
+          type: "hipertrofia",
+          title: day.dayOfWeek === 6 ? "Acessórios" : "Hipertrofia",
+          wod: null,
+          items: lifts.map(([slug, isMain, repsOverride, liftNotes], i) => {
+            const p = isMain ? phase.main : phase.accessory;
+            return {
+              exerciseId: idOf(slug),
+              order: i,
+              sets: p.sets,
+              reps: repsOverride ?? p.reps,
+              restSeconds: p.rest,
+              targetRpe: p.rpe,
+              tempo: EXERCISES.find((e) => e.slug === slug)?.cadence,
+              notes: liftNotes ?? (isMain ? "Exercício principal do dia" : undefined),
+            };
+          }),
+        },
+        {
+          type: "wod",
+          title: "WOD",
+          wod: pool[(week + dayIndex + cycle) % pool.length],
+          items: [],
+        },
+        prep(day.finalStretch, "alongamento_final", "Alongamento final"),
+      ]);
+    }
+  }
+
+  const insertedWorkouts = await db
+    .insert(workouts)
+    .values(workoutRows)
+    .returning({ id: workouts.id });
+
+  const blockRows = blockPlans.flatMap((plan, wi) =>
+    plan.map((b, order) => ({
+      workoutId: insertedWorkouts[wi].id,
+      order,
+      type: b.type,
+      title: b.title,
+    })),
+  );
+  const insertedBlocks = await db
+    .insert(workoutBlocks)
+    .values(blockRows)
+    .returning({ id: workoutBlocks.id });
+
+  const flatPlans = blockPlans.flat();
+  const exerciseRows = flatPlans.flatMap((b, bi) =>
+    b.items.map((item) => ({ ...item, blockId: insertedBlocks[bi].id })),
+  );
+  const wodRows = flatPlans.flatMap((b, bi) =>
+    b.wod
+      ? [
+          {
+            blockId: insertedBlocks[bi].id,
+            name: b.wod.name,
+            type: b.wod.type,
+            scoreType: b.wod.scoreType,
+            timeCapSeconds: b.wod.timeCapSeconds,
+            rounds: b.wod.rounds,
+            intervalSeconds: b.wod.intervalSeconds,
+            scheme: b.wod.scheme,
+          },
+        ]
+      : [],
+  );
+
+  // lotes de 1000 linhas para ficar longe do limite de parâmetros do Postgres
+  for (let i = 0; i < exerciseRows.length; i += 1000) {
+    await db.insert(blockExercises).values(exerciseRows.slice(i, i + 1000));
+  }
+  await db.insert(wods).values(wodRows);
 }
 
 main().catch((err) => {

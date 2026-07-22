@@ -10,9 +10,10 @@ import {
   exerciseFavorites,
   journalEntries,
   nutritionLogs,
+  programs,
   userProfiles,
 } from "@/db/schema";
-import { todayISO } from "@/lib/dates";
+import { mondayOf, todayISO } from "@/lib/dates";
 import { requireUser } from "@/lib/session";
 
 const scale = z.number().int().min(1).max(5).nullable();
@@ -98,6 +99,25 @@ export async function updateProfile(input: z.infer<typeof profileSchema>) {
   const data = profileSchema.parse(input);
   const db = await getDb();
   await db.update(userProfiles).set(data).where(eq(userProfiles.userId, user.id));
+  revalidatePath("/perfil");
+  return { ok: true };
+}
+
+/** Troca o programa ativo e reinicia a contagem de semanas na segunda-feira atual. */
+export async function changeProgram(programId: number) {
+  const user = await requireUser();
+  const db = await getDb();
+  const [program] = await db
+    .select()
+    .from(programs)
+    .where(eq(programs.id, programId));
+  if (!program) return { ok: false, error: "Programa não encontrado." };
+  await db
+    .update(userProfiles)
+    .set({ programId, programStartDate: todayISO(mondayOf()) })
+    .where(eq(userProfiles.userId, user.id));
+  revalidatePath("/");
+  revalidatePath("/programa");
   revalidatePath("/perfil");
   return { ok: true };
 }
