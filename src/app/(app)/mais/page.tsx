@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Dumbbell,
   NotebookPen,
+  Ruler,
   UserRound,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +37,12 @@ const LINKS = [
     label: "Fotos de progresso",
     description: "Antes/depois privado, direto da câmera",
     icon: Camera,
+  },
+  {
+    href: "/medidas",
+    label: "Medidas corporais",
+    description: "Peito, cintura, braço, coxa… + evolução",
+    icon: Ruler,
   },
   {
     href: "/perfil",

@@ -27,6 +27,9 @@ export default async function LibraryPage() {
           instructions: e.instructions,
           commonMistakes: e.commonMistakes,
           cadence: e.cadence,
+          imageUrl: e.imageUrl,
+          videoUrl: e.videoUrl,
+          substitutes: e.substitutes,
           isNeglected: e.isNeglected,
           favorite: e.favorite,
         }))}

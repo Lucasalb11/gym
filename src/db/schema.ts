@@ -90,6 +90,8 @@ export const exercises = pgTable("exercises", {
   cadence: text("cadence"),
   videoUrl: text("video_url"),
   imageUrl: text("image_url"),
+  // Alternativa sem equipamento (ex.: remo → corrida; wall ball → thruster c/ halteres)
+  substitutes: text("substitutes"),
   isNeglected: boolean("is_neglected").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -301,6 +303,21 @@ export const bodyMetrics = pgTable("body_metrics", {
   date: date("date").notNull(),
   weightKg: real("weight_kg"),
   bodyFatPct: real("body_fat_pct"),
+  notes: text("notes"),
+});
+
+export const bodyMeasurements = pgTable("body_measurements", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  chestCm: real("chest_cm"),
+  waistCm: real("waist_cm"),
+  hipCm: real("hip_cm"),
+  armCm: real("arm_cm"),
+  thighCm: real("thigh_cm"),
+  calfCm: real("calf_cm"),
   notes: text("notes"),
 });
 

@@ -438,6 +438,13 @@ const SHORT_WODS: SeedWod[] = [
   { name: "For Time 21-15-9", type: "for_time", scoreType: "time", timeCapSeconds: 540, scheme: "21-15-9\nCal remo\nBurpees" },
   { name: "EMOM 10 técnico", type: "emom", scoreType: "reps", rounds: 10, intervalSeconds: 60, scheme: "Ímpar: 3 power cleans pesados\nPar: 30s double-unders" },
   { name: "AMRAP 12", type: "amrap", scoreType: "rounds_reps", timeCapSeconds: 720, scheme: "12 avanços alternados\n9 push-ups\n6 pull-ups" },
+  { name: "Intervalos de remo", type: "emom", scoreType: "reps", rounds: 6, intervalSeconds: 120, scheme: "6 rounds de 2 min:\n45s remo FORTE\n75s descanso ativo\nScore = total de calorias. Potência aeróbica." },
+];
+
+// Sábado estilo Hyrox: engine longo, corrida sob fadiga e estações funcionais
+const HYROX_WODS: SeedWod[] = [
+  { name: "Hyrox Sim (compacto)", type: "for_time", scoreType: "time", timeCapSeconds: 1800, scheme: "4 rounds:\n500 m remo\n20 wall balls\n20 avanços alternados\n100 m farmer carry pesado" },
+  { name: "Compromised Running", type: "for_time", scoreType: "time", timeCapSeconds: 1500, scheme: "5 rounds:\n400 m corrida\n15 KB swings\n10 burpees\nRitmo constante — aprenda a correr cansado." },
 ];
 
 // Deload: estímulo aeróbico leve (Zona 2), sem impacto e sem corrida de relógio
@@ -463,8 +470,8 @@ type DayTemplate = {
   dynamic: string[];
   mobility: string[];
   warmup: string[];
-  // [slug, isMain, repsOverride?]
-  lifts: [string, boolean, string?][];
+  // [slug, isMain, repsOverride?, notes?]
+  lifts: [string, boolean, string?, string?][];
   wodPool: SeedWod[];
   finalStretch: string[];
 };
@@ -480,6 +487,8 @@ const DAYS: DayTemplate[] = [
     mobility: ["mobilidade-tornozelo", "noventa-noventa"],
     warmup: ["bike", "barra-vazia"],
     lifts: [
+      // Potência antes da força (modelo olímpico): explosão com o SNC descansado
+      ["box-jump", false, "3", "Potência: salto explosivo, desça com calma. Pare a série se perder altura."],
       ["agachamento-livre", true],
       ["leg-press", false],
       ["cadeira-extensora", false],
@@ -519,6 +528,8 @@ const DAYS: DayTemplate[] = [
     mobility: ["noventa-noventa", "pombo"],
     warmup: ["bike", "barra-vazia"],
     lifts: [
+      // Levantamento olímpico técnico antes do terra: velocidade de barra, não fadiga
+      ["power-clean", false, "3", "Técnica e velocidade da barra — carga moderada (~60-70%)."],
       ["levantamento-terra", true],
       ["hip-thrust", false],
       ["mesa-flexora", false],
@@ -544,6 +555,7 @@ const DAYS: DayTemplate[] = [
       ["puxada-alta", false],
       ["face-pull", false, "15"],
       ["rosca-direta", false, "12"],
+      ["rosca-martelo", false, "12"],
       ["farmer-carry", false, "30 m"],
     ],
     wodPool: SHORT_WODS,
@@ -551,13 +563,13 @@ const DAYS: DayTemplate[] = [
   },
   {
     dayOfWeek: 6,
-    name: "Condicionamento + Negligenciados",
-    focus: "WOD longo + músculos esquecidos",
+    name: "Engine — Hyrox + Negligenciados",
+    focus: "Motor aeróbico, corrida sob fadiga e músculos esquecidos",
     muscles: ["corpo inteiro", "core", "panturrilhas", "antebraços"],
     estimatedMinutes: 55,
     dynamic: ["polichinelo", "inchworm", "balanco-pernas"],
     mobility: ["mobilidade-tornozelo", "gato-camelo"],
-    warmup: ["pular-corda", "band-pull-apart"],
+    warmup: ["pular-corda", "double-under", "band-pull-apart"],
     lifts: [
       ["tibial-anterior", false, "20"],
       ["panturrilha-sentado", false, "15"],
@@ -566,7 +578,7 @@ const DAYS: DayTemplate[] = [
       ["hollow-hold", false, "30s"],
       ["rosca-punho", false, "20"],
     ],
-    wodPool: LONG_WODS,
+    wodPool: [...HYROX_WODS, ...LONG_WODS],
     finalStretch: ["alongamento-panturrilha", "alongamento-posterior", "postura-crianca"],
   },
 ];
@@ -578,29 +590,64 @@ const DAYS: DayTemplate[] = [
 async function main() {
   const db = await getDb();
   const [{ value: existing }] = await db.select({ value: count() }).from(exercises);
-  if (existing > 0) {
-    console.log(`Banco já populado (${existing} exercícios). Nada a fazer.`);
+  const reseedProgram = process.env.RESEED_PROGRAM === "1";
+  if (existing > 0 && !reseedProgram) {
+    console.log(
+      `Banco já populado (${existing} exercícios). Use RESEED_PROGRAM=1 para regenerar o programa.`,
+    );
     process.exit(0);
   }
 
-  console.log("Inserindo exercícios…");
-  const inserted = await db
-    .insert(exercises)
-    .values(
-      EXERCISES.map((e) => ({
-        slug: e.slug,
-        name: e.name,
-        category: e.category,
-        muscles: e.muscles,
-        equipment: e.equipment,
-        instructions: e.instructions,
-        commonMistakes: e.commonMistakes,
-        cadence: e.cadence,
-        isNeglected: e.isNeglected ?? false,
-      })),
-    )
-    .returning({ id: exercises.id, slug: exercises.slug });
-  const idBySlug = new Map(inserted.map((r) => [r.slug, r.id]));
+  let idBySlug: Map<string, number>;
+  if (existing === 0) {
+    console.log("Inserindo exercícios…");
+    const inserted = await db
+      .insert(exercises)
+      .values(
+        EXERCISES.map((e) => ({
+          slug: e.slug,
+          name: e.name,
+          category: e.category,
+          muscles: e.muscles,
+          equipment: e.equipment,
+          instructions: e.instructions,
+          commonMistakes: e.commonMistakes,
+          cadence: e.cadence,
+          isNeglected: e.isNeglected ?? false,
+        })),
+      )
+      .returning({ id: exercises.id, slug: exercises.slug });
+    idBySlug = new Map(inserted.map((r) => [r.slug, r.id]));
+  } else {
+    // Regenerar programa preservando exercícios e registros de treino:
+    // só é seguro quando ainda não há séries logadas apontando para a prescrição
+    const { setLogs, userProfiles, programs: programsTable } = await import(
+      "../src/db/schema"
+    );
+    const { isNotNull, sql } = await import("drizzle-orm");
+    const [{ value: loggedCount }] = await db
+      .select({ value: count() })
+      .from(setLogs)
+      .where(isNotNull(setLogs.blockExerciseId));
+    if (loggedCount > 0) {
+      console.error(
+        `Abortado: há ${loggedCount} séries logadas na prescrição atual. ` +
+          "Regenerar o programa apagaria esse vínculo — crie um programa novo em vez disso.",
+      );
+      process.exit(1);
+    }
+    console.log("Regenerando programa (exercícios preservados)…");
+    await db
+      .update(userProfiles)
+      .set({ programId: null })
+      .where(isNotNull(userProfiles.programId));
+    await db.delete(programsTable);
+    await db.execute(sql`select setval(pg_get_serial_sequence('programs','id'), coalesce(max(id),1)) from programs`);
+    const rows = await db
+      .select({ id: exercises.id, slug: exercises.slug })
+      .from(exercises);
+    idBySlug = new Map(rows.map((r) => [r.slug, r.id]));
+  }
   const idOf = (slug: string) => {
     const id = idBySlug.get(slug);
     if (!id) throw new Error(`Exercício não encontrado no seed: ${slug}`);
@@ -683,7 +730,7 @@ async function main() {
 
         if (b.prescribe) {
           await db.insert(blockExercises).values(
-            day.lifts.map(([slug, isMain, repsOverride], i) => {
+            day.lifts.map(([slug, isMain, repsOverride, liftNotes], i) => {
               const p = isMain ? phase.main : phase.accessory;
               return {
                 blockId: block.id,
@@ -694,7 +741,7 @@ async function main() {
                 restSeconds: p.rest,
                 targetRpe: p.rpe,
                 tempo: EXERCISES.find((e) => e.slug === slug)?.cadence,
-                notes: isMain ? "Exercício principal do dia" : undefined,
+                notes: liftNotes ?? (isMain ? "Exercício principal do dia" : undefined),
               };
             }),
           );
@@ -715,6 +762,10 @@ async function main() {
       }
     }
   }
+
+  // Reaponta perfis existentes para o programa recém-criado
+  const { userProfiles } = await import("../src/db/schema");
+  await db.update(userProfiles).set({ programId: program.id });
 
   console.log("Seed concluído: 60 dias de treino (12 semanas × 5 dias).");
   process.exit(0);

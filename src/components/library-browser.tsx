@@ -25,6 +25,9 @@ type Exercise = {
   instructions: string | null;
   commonMistakes: string | null;
   cadence: string | null;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  substitutes: string | null;
   isNeglected: boolean;
   favorite: boolean;
 };
@@ -180,6 +183,15 @@ export function LibraryBrowser({ exercises }: { exercises: Exercise[] }) {
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3 text-sm">
+                {selected.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={selected.imageUrl}
+                    alt={`Demonstração de ${selected.name}`}
+                    className="w-full rounded-lg bg-white"
+                    loading="lazy"
+                  />
+                )}
                 {selected.instructions && (
                   <p>
                     <span className="font-medium">Execução: </span>
@@ -192,11 +204,27 @@ export function LibraryBrowser({ exercises }: { exercises: Exercise[] }) {
                     {selected.commonMistakes}
                   </p>
                 )}
+                {selected.substitutes && (
+                  <p>
+                    <span className="font-medium">Sem equipamento? </span>
+                    {selected.substitutes}
+                  </p>
+                )}
                 {selected.cadence && (
                   <p>
                     <span className="font-medium">Cadência: </span>
                     <span className="font-mono tabular-nums">{selected.cadence}</span>
                   </p>
+                )}
+                {selected.videoUrl && (
+                  <a
+                    href={selected.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-10 items-center gap-1 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    ▶ Ver vídeo da técnica
+                  </a>
                 )}
               </div>
             </>

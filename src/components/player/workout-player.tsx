@@ -442,6 +442,15 @@ function ExerciseCard({
 
         {showInfo && (
           <div className="mt-3 rounded-lg bg-secondary/50 p-3 text-sm">
+            {item.exercise.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.exercise.imageUrl}
+                alt={`Demonstração de ${item.exercise.name}`}
+                className="mb-3 w-full max-w-sm rounded-lg bg-white"
+                loading="lazy"
+              />
+            )}
             {item.exercise.instructions && (
               <p>
                 <span className="font-medium">Execução: </span>
@@ -454,10 +463,26 @@ function ExerciseCard({
                 {item.exercise.commonMistakes}
               </p>
             )}
+            {item.exercise.substitutes && (
+              <p className="mt-2">
+                <span className="font-medium">Sem equipamento? </span>
+                {item.exercise.substitutes}
+              </p>
+            )}
             {item.exercise.muscles.length > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
                 Músculos: {item.exercise.muscles.join(", ")}
               </p>
+            )}
+            {item.exercise.videoUrl && (
+              <a
+                href={item.exercise.videoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex min-h-10 items-center gap-1 rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                ▶ Ver vídeo da técnica
+              </a>
             )}
           </div>
         )}

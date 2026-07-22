@@ -1,21 +1,52 @@
 import type { Metadata } from "next";
-import { CalendarCheck, Timer, Trophy } from "lucide-react";
+import Link from "next/link";
+import { desc, eq } from "drizzle-orm";
+import { CalendarCheck, Camera, Ruler, Timer, Trophy } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   StrengthChart,
   VolumeChart,
   WeightChart,
 } from "@/components/evolution-charts";
+import { getDb } from "@/db";
+import { progressPhotos } from "@/db/schema";
 import { formatSeconds, mondayOf, todayISO } from "@/lib/dates";
-import { getEvolutionData } from "@/lib/queries";
+import { ensureProfile, getEvolutionData } from "@/lib/queries";
 import { requireUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Evolução" };
 
+function imcOf(weightKg: number | null, heightCm: number | null) {
+  if (!weightKg || !heightCm) return null;
+  const imc = weightKg / (heightCm / 100) ** 2;
+  const label =
+    imc < 18.5
+      ? "abaixo do peso"
+      : imc < 25
+        ? "faixa saudável"
+        : imc < 30
+          ? "sobrepeso"
+          : "obesidade";
+  return { value: imc, label };
+}
+
 export default async function EvolutionPage() {
   const user = await requireUser();
-  const data = await getEvolutionData(user.id);
+  const [data, profile, db] = await Promise.all([
+    getEvolutionData(user.id),
+    ensureProfile(user.id),
+    getDb(),
+  ]);
+  const photos = await db
+    .select({ id: progressPhotos.id, date: progressPhotos.date })
+    .from(progressPhotos)
+    .where(eq(progressPhotos.userId, user.id))
+    .orderBy(desc(progressPhotos.createdAt))
+    .limit(4);
+  const latestWeight = data.weightSeries.at(-1)?.weightKg ?? null;
+  const imc = imcOf(latestWeight, profile.heightCm);
 
   const wodTimes = data.wodDone.filter((w) => w.resultSeconds != null);
   const avgWod =
@@ -77,6 +108,76 @@ export default async function EvolutionPage() {
       <ChartCard title="Peso corporal" subtitle="Registros do diário">
         <WeightChart data={data.weightSeries} />
       </ChartCard>
+
+      {/* Corpo: IMC, medidas e fotos */}
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Corpo</h2>
+              <p className="text-xs text-muted-foreground">
+                IMC, medidas e fotos de progresso
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href="/medidas">
+                  <Ruler className="size-4" aria-hidden />
+                  Medidas
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/fotos">
+                  <Camera className="size-4" aria-hidden />
+                  Fotos
+                </Link>
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-secondary/40 p-3">
+              <p className="text-xs text-muted-foreground">Peso atual</p>
+              <p className="font-mono text-xl font-semibold tabular-nums">
+                {latestWeight ? `${latestWeight.toFixed(1)} kg` : "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-secondary/40 p-3">
+              <p className="text-xs text-muted-foreground">IMC</p>
+              <p className="font-mono text-xl font-semibold tabular-nums">
+                {imc ? imc.value.toFixed(1) : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {imc
+                  ? imc.label
+                  : !profile.heightCm
+                    ? "cadastre sua altura no perfil"
+                    : "registre seu peso no diário"}
+              </p>
+            </div>
+          </div>
+
+          {photos.length > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              {photos.map((p) => (
+                <Link
+                  key={p.id}
+                  href="/fotos"
+                  className="overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/photos/${p.id}/file`}
+                    alt={`Foto de progresso de ${new Date(`${p.date}T12:00:00`).toLocaleDateString("pt-BR")}`}
+                    className="aspect-[3/4] w-full object-cover"
+                    loading="lazy"
+                  />
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <ChartCard
         title="Força"

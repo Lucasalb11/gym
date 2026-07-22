@@ -10,6 +10,9 @@ export type ExerciseInfo = {
   instructions: string | null;
   commonMistakes: string | null;
   cadence: string | null;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  substitutes: string | null;
   isNeglected: boolean;
 };
 
