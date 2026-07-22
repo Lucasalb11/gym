@@ -32,9 +32,40 @@ const EMPTY: Values = {
   notes: "",
 };
 
+type MacroKey = "calories" | "proteinG" | "carbsG" | "fatG" | "waterMl";
+
+// Adição rápida de consumos comuns — 1 toque registra e salva
+const QUICK_ADDS: { label: string; delta: Partial<Record<MacroKey, number>> }[] = [
+  { label: "+500 ml água", delta: { waterMl: 500 } },
+  { label: "+1 ovo", delta: { proteinG: 6, calories: 70, fatG: 5 } },
+  { label: "+100 g frango", delta: { proteinG: 31, calories: 165, fatG: 4 } },
+  { label: "+1 scoop whey", delta: { proteinG: 24, calories: 120, carbsG: 3 } },
+];
+
 export function NutritionForm({ initial }: { initial: Values | null }) {
   const [values, setValues] = useState<Values>(initial ?? EMPTY);
   const [pending, startTransition] = useTransition();
+
+  function quickAdd(item: (typeof QUICK_ADDS)[number]) {
+    const next = { ...values };
+    for (const [key, amount] of Object.entries(item.delta) as [MacroKey, number][]) {
+      next[key] = (next[key] ?? 0) + amount;
+    }
+    setValues(next);
+    startTransition(async () => {
+      await saveNutrition({
+        calories: next.calories,
+        proteinG: next.proteinG,
+        carbsG: next.carbsG,
+        fatG: next.fatG,
+        waterMl: next.waterMl,
+        creatineTaken: next.creatineTaken,
+        supplements: next.supplements || undefined,
+        notes: next.notes || undefined,
+      });
+      toast.success(`${item.label} registrado.`);
+    });
+  }
 
   const num = (v: number | null) => (v == null ? "" : v);
   const setNum = (key: keyof Values) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -73,6 +104,19 @@ export function NutritionForm({ initial }: { initial: Values | null }) {
       <CardContent className="p-4">
         <form onSubmit={submit} className="flex flex-col gap-4">
           <p className="text-sm font-semibold">Registrar hoje</p>
+          <div className="flex flex-wrap gap-1.5">
+            {QUICK_ADDS.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => quickAdd(item)}
+                disabled={pending}
+                className="h-10 rounded-full border border-primary/40 bg-primary/10 px-3.5 text-sm font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {fields.map((f) => (
               <div key={f.key} className="grid gap-1.5">

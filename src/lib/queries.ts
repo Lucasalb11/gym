@@ -32,7 +32,10 @@ export async function ensureProfile(userId: string) {
     .where(eq(userProfiles.userId, userId));
   if (existing[0]) return existing[0];
 
-  const [program] = await db.select().from(programs).limit(1);
+  const allPrograms = await db.select().from(programs);
+  const program =
+    allPrograms.find((p) => p.name.includes("Intermediário · Ciclo 1")) ??
+    allPrograms[0];
   const [created] = await db
     .insert(userProfiles)
     .values({

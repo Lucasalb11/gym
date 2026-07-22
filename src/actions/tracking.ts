@@ -5,13 +5,15 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import {
+  bodyMeasurements,
   bodyMetrics,
   exerciseFavorites,
   journalEntries,
   nutritionLogs,
+  programs,
   userProfiles,
 } from "@/db/schema";
-import { todayISO } from "@/lib/dates";
+import { mondayOf, todayISO } from "@/lib/dates";
 import { requireUser } from "@/lib/session";
 
 const scale = z.number().int().min(1).max(5).nullable();
@@ -98,6 +100,59 @@ export async function updateProfile(input: z.infer<typeof profileSchema>) {
   const db = await getDb();
   await db.update(userProfiles).set(data).where(eq(userProfiles.userId, user.id));
   revalidatePath("/perfil");
+  return { ok: true };
+}
+
+/** Troca o programa ativo e reinicia a contagem de semanas na segunda-feira atual. */
+export async function changeProgram(programId: number) {
+  const user = await requireUser();
+  const db = await getDb();
+  const [program] = await db
+    .select()
+    .from(programs)
+    .where(eq(programs.id, programId));
+  if (!program) return { ok: false, error: "Programa não encontrado." };
+  await db
+    .update(userProfiles)
+    .set({ programId, programStartDate: todayISO(mondayOf()) })
+    .where(eq(userProfiles.userId, user.id));
+  revalidatePath("/");
+  revalidatePath("/programa");
+  revalidatePath("/perfil");
+  return { ok: true };
+}
+
+const cm = z.number().min(10).max(300).nullable();
+
+const measurementsSchema = z.object({
+  chestCm: cm,
+  waistCm: cm,
+  hipCm: cm,
+  armCm: cm,
+  thighCm: cm,
+  calfCm: cm,
+  notes: z.string().max(300).optional(),
+});
+
+export async function saveMeasurements(input: z.infer<typeof measurementsSchema>) {
+  const user = await requireUser();
+  const data = measurementsSchema.parse(input);
+  const db = await getDb();
+  const date = todayISO();
+  const [existing] = await db
+    .select()
+    .from(bodyMeasurements)
+    .where(and(eq(bodyMeasurements.userId, user.id), eq(bodyMeasurements.date, date)));
+  if (existing) {
+    await db
+      .update(bodyMeasurements)
+      .set(data)
+      .where(eq(bodyMeasurements.id, existing.id));
+  } else {
+    await db.insert(bodyMeasurements).values({ ...data, userId: user.id, date });
+  }
+  revalidatePath("/medidas");
+  revalidatePath("/evolucao");
   return { ok: true };
 }
 

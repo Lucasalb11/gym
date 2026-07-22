@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
+import { asc } from "drizzle-orm";
 import { Trophy } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { LogoutButton } from "@/components/logout-button";
 import { ProfileForm } from "@/components/profile-form";
+import { ProgramPicker } from "@/components/program-picker";
+import { getDb } from "@/db";
+import { programs } from "@/db/schema";
 import { getProfileData } from "@/lib/queries";
 import { requireUser } from "@/lib/session";
 
@@ -11,6 +15,15 @@ export const metadata: Metadata = { title: "Perfil" };
 export default async function ProfilePage() {
   const user = await requireUser();
   const { profile, latestWeight, prs } = await getProfileData(user.id);
+  const db = await getDb();
+  const allPrograms = await db
+    .select({
+      id: programs.id,
+      name: programs.name,
+      description: programs.description,
+    })
+    .from(programs)
+    .orderBy(asc(programs.id));
 
   return (
     <div className="flex flex-col gap-6">
@@ -32,6 +45,8 @@ export default async function ProfilePage() {
           </CardContent>
         </Card>
       )}
+
+      <ProgramPicker programs={allPrograms} currentId={profile.programId} />
 
       <ProfileForm
         initial={{
