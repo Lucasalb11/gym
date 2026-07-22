@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import { ExternalLink } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { NutritionForm } from "@/components/nutrition-form";
+import { RecipeBrowser } from "@/components/recipe-browser";
 import { getProfileData, getTodayNutrition } from "@/lib/queries";
-import { nutritionTargets, RECIPES } from "@/lib/recipes";
+import { nutritionTargets } from "@/lib/recipes";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Nutrição" };
@@ -90,49 +88,11 @@ export default async function NutritionPage() {
         <div>
           <h2 className="text-lg font-semibold">Receitas fáceis</h2>
           <p className="text-sm text-muted-foreground">
-            Sugestões rápidas para bater a meta de proteína — links para
-            TudoGostoso e Panelinha.
+            Filtre por tipo de proteína — incluindo opções vegetarianas. Links
+            para TudoGostoso e Panelinha.
           </p>
         </div>
-        <ul className="flex flex-col gap-2">
-          {RECIPES.map((r) => (
-            <li key={r.name}>
-              <a
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Card className="transition-colors hover:bg-accent/50">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-medium">{r.name}</p>
-                      <ExternalLink
-                        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                        aria-hidden
-                      />
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {r.description}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <Badge variant="secondary">{r.tag}</Badge>
-                      <Badge variant="secondary" className="font-mono tabular-nums">
-                        ~{r.approx.kcal} kcal
-                      </Badge>
-                      <Badge variant="secondary" className="font-mono tabular-nums">
-                        {r.approx.proteinG} g proteína
-                      </Badge>
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {r.source}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </a>
-            </li>
-          ))}
-        </ul>
+        <RecipeBrowser />
       </section>
     </div>
   );
