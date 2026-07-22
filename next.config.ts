@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // PGlite (WASM) e pg não devem ser empacotados pelo bundler do servidor
+  serverExternalPackages: ["@electric-sql/pglite", "pg"],
 };
 
 export default nextConfig;
