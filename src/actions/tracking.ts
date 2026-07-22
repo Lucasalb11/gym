@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import {
   bodyMeasurements,
   bodyMetrics,
+  calisthenicsProgress,
   exerciseFavorites,
   journalEntries,
   nutritionLogs,
@@ -174,5 +175,26 @@ export async function toggleFavorite(exerciseId: number) {
     await db.insert(exerciseFavorites).values({ userId: user.id, exerciseId });
   }
   revalidatePath("/biblioteca");
+  return { ok: true };
+}
+
+export async function toggleLessonDone(lessonId: number) {
+  const user = await requireUser();
+  const db = await getDb();
+  const [existing] = await db
+    .select()
+    .from(calisthenicsProgress)
+    .where(
+      and(
+        eq(calisthenicsProgress.userId, user.id),
+        eq(calisthenicsProgress.lessonId, lessonId),
+      ),
+    );
+  if (existing) {
+    await db.delete(calisthenicsProgress).where(eq(calisthenicsProgress.id, existing.id));
+  } else {
+    await db.insert(calisthenicsProgress).values({ userId: user.id, lessonId });
+  }
+  revalidatePath("/calistenia");
   return { ok: true };
 }

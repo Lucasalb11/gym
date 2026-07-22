@@ -4,6 +4,8 @@ import { getDb } from "@/db";
 import {
   blockExercises,
   bodyMetrics,
+  calisthenicsLessons,
+  calisthenicsProgress,
   exerciseFavorites,
   exercises,
   journalEntries,
@@ -441,6 +443,24 @@ export async function getLibrary(userId: string) {
     .where(eq(exerciseFavorites.userId, userId));
   const favSet = new Set(favs.map((f) => f.exerciseId));
   return all.map((e) => ({ ...e, favorite: favSet.has(e.id) }));
+}
+
+// ---------------------------------------------------------------------------
+// Calistenia
+// ---------------------------------------------------------------------------
+
+export async function getCalisthenicsRoadmap(userId: string) {
+  const db = await getDb();
+  const lessons = await db
+    .select()
+    .from(calisthenicsLessons)
+    .orderBy(asc(calisthenicsLessons.order));
+  const done = await db
+    .select({ lessonId: calisthenicsProgress.lessonId })
+    .from(calisthenicsProgress)
+    .where(eq(calisthenicsProgress.userId, userId));
+  const doneSet = new Set(done.map((d) => d.lessonId));
+  return lessons.map((l) => ({ ...l, done: doneSet.has(l.id) }));
 }
 
 // ---------------------------------------------------------------------------

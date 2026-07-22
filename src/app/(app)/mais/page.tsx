@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Dumbbell,
   NotebookPen,
+  Route,
   Ruler,
   UserRound,
 } from "lucide-react";
@@ -19,6 +20,12 @@ const LINKS = [
     label: "Diário",
     description: "Sono, energia, humor, dor, peso",
     icon: NotebookPen,
+  },
+  {
+    href: "/calistenia",
+    label: "Calistenia",
+    description: "Roadmap iniciante → avançado, com check nas aulas",
+    icon: Route,
   },
   {
     href: "/biblioteca",

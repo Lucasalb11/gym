@@ -4,11 +4,13 @@ import { count } from "drizzle-orm";
 import { getDb } from "../src/db";
 import {
   blockExercises,
+  calisthenicsLessons,
   exercises,
   programs,
   wods,
   workoutBlocks,
   workouts,
+  type calisthenicsLevel,
   type exerciseCategory,
 } from "../src/db/schema";
 
@@ -675,11 +677,352 @@ const DAYS: DayTemplate[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Calistenia (roadmap iniciante → avançado, equipamento simples)
+// ---------------------------------------------------------------------------
+
+type CalLevel = (typeof calisthenicsLevel.enumValues)[number];
+
+type SeedLesson = {
+  slug: string;
+  level: CalLevel;
+  order: number;
+  title: string;
+  description?: string;
+  equipment?: string;
+  muscles: string[];
+  sets?: string;
+  instructions?: string;
+  commonMistakes?: string;
+};
+
+const CALISTHENICS_LESSONS: SeedLesson[] = [
+  // Iniciante — base de core, empurrar, puxar e agachar
+  {
+    slug: "cal-prancha",
+    level: "iniciante",
+    order: 1,
+    title: "Prancha",
+    description: "Base de estabilidade de core para tudo que vem depois.",
+    equipment: "colchonete",
+    muscles: ["core", "lombar"],
+    sets: "3x20-30s",
+    instructions:
+      "Apoie antebraços e pontas dos pés no chão, corpo em linha reta da cabeça aos calcanhares, abdômen contraído.",
+    commonMistakes: "Quadril caindo ou subindo demais; prender a respiração.",
+  },
+  {
+    slug: "cal-prancha-lateral",
+    level: "iniciante",
+    order: 2,
+    title: "Prancha lateral",
+    equipment: "colchonete",
+    muscles: ["core", "oblíquos"],
+    sets: "3x15-20s por lado",
+    instructions:
+      "Apoiado no antebraço e na lateral do pé, eleve o quadril mantendo o corpo alinhado.",
+    commonMistakes: "Deixar o quadril cair; girar o tronco para frente.",
+  },
+  {
+    slug: "cal-agachamento-livre",
+    level: "iniciante",
+    order: 3,
+    title: "Agachamento livre",
+    equipment: "sem equipamento",
+    muscles: ["quadríceps", "glúteos"],
+    sets: "3x15",
+    instructions:
+      "Pés na largura dos ombros, desça controlando o joelho alinhado com o pé até a coxa quase paralela ao chão.",
+    commonMistakes: "Joelho colapsando para dentro; calcanhar saindo do chão.",
+  },
+  {
+    slug: "cal-elevacao-pelvica",
+    level: "iniciante",
+    order: 4,
+    title: "Elevação pélvica",
+    equipment: "colchonete",
+    muscles: ["glúteos", "posteriores"],
+    sets: "3x15",
+    instructions:
+      "Deitado, joelhos flexionados, eleve o quadril contraindo os glúteos até formar linha reta dos ombros aos joelhos.",
+    commonMistakes: "Hiperestender a lombar em vez de usar o glúteo.",
+  },
+  {
+    slug: "cal-flexao-joelhos",
+    level: "iniciante",
+    order: 5,
+    title: "Flexão de joelhos",
+    equipment: "colchonete",
+    muscles: ["peitoral", "tríceps", "ombros"],
+    sets: "3x8-12",
+    instructions:
+      "Apoiado nos joelhos e mãos, desça o peito quase até tocar o chão mantendo o corpo alinhado do joelho à cabeça.",
+    commonMistakes: "Quadril subindo (virando dobradiça); cotovelos totalmente abertos a 90°.",
+  },
+  {
+    slug: "cal-remada-invertida-alta",
+    level: "iniciante",
+    order: 6,
+    title: "Remada invertida (barra alta)",
+    equipment: "barra fixa baixa ou mesa resistente",
+    muscles: ["costas", "bíceps"],
+    sets: "3x8-10",
+    instructions:
+      "Deitado sob a barra baixa, segure com pegada pronada, puxe o peito em direção à barra mantendo o corpo reto.",
+    commonMistakes: "Quadril caindo; puxar só com o braço em vez de aproximar as escápulas.",
+  },
+  {
+    slug: "cal-dead-hang",
+    level: "iniciante",
+    order: 7,
+    title: "Dead hang (pendurar na barra)",
+    description: "Prepara grip e ombro para a barra fixa.",
+    equipment: "barra fixa",
+    muscles: ["antebraço", "ombros"],
+    sets: "3x20-30s",
+    instructions:
+      "Segure a barra com os braços estendidos, ombros ligeiramente ativos (não totalmente relaxados), sustente o tempo.",
+    commonMistakes: "Relaxar totalmente os ombros; soltar antes da fadiga de grip.",
+  },
+  {
+    slug: "cal-flexao-completa",
+    level: "iniciante",
+    order: 8,
+    title: "Flexão de braço completa",
+    equipment: "colchonete",
+    muscles: ["peitoral", "tríceps", "ombros", "core"],
+    sets: "3x8-12",
+    instructions:
+      "Mãos um pouco além da largura dos ombros, corpo reto da cabeça aos calcanhares, desça até quase tocar o peito no chão.",
+    commonMistakes: "Quadril caindo ou empinado; amplitude incompleta.",
+  },
+  {
+    slug: "cal-remada-invertida",
+    level: "iniciante",
+    order: 9,
+    title: "Remada invertida (padrão)",
+    equipment: "barra fixa em altura média",
+    muscles: ["costas", "bíceps"],
+    sets: "3x8-12",
+    instructions:
+      "Barra na altura do quadril, corpo reto, pés apoiados no chão, puxe até o peito quase tocar a barra.",
+    commonMistakes: "Corpo em dobradiça; não completar a amplitude.",
+  },
+  {
+    slug: "cal-negativa-barra-fixa",
+    level: "iniciante",
+    order: 10,
+    title: "Negativa de barra fixa",
+    description: "Último passo antes da barra fixa completa.",
+    equipment: "barra fixa + banco ou caixa para subir",
+    muscles: ["costas", "bíceps"],
+    sets: "3x5 (3-5s de descida)",
+    instructions:
+      "Suba com apoio até o queixo acima da barra e desça o mais devagar possível controlando o movimento.",
+    commonMistakes: "Descer rápido demais; balançar o corpo para compensar.",
+  },
+
+  // Intermediário — puxar/empurrar completos, unilateral, isometria
+  {
+    slug: "cal-barra-fixa",
+    level: "intermediario",
+    order: 11,
+    title: "Barra fixa completa",
+    equipment: "barra fixa",
+    muscles: ["costas", "bíceps"],
+    sets: "4x5-8",
+    instructions:
+      "Pendurado com pegada pronada, puxe até o queixo passar a barra sem impulso das pernas.",
+    commonMistakes: "Amplitude parcial; usar embalo do quadril fora de um treino técnico de kipping.",
+  },
+  {
+    slug: "cal-flexao-diamante",
+    level: "intermediario",
+    order: 12,
+    title: "Flexão diamante",
+    equipment: "colchonete",
+    muscles: ["tríceps", "peitoral"],
+    sets: "3x8-10",
+    instructions:
+      "Mãos juntas formando um losango sob o peito, desça controlando os cotovelos próximos ao corpo.",
+    commonMistakes: "Abrir os cotovelos; perder o alinhamento do quadril.",
+  },
+  {
+    slug: "cal-mergulho-paralelas",
+    level: "intermediario",
+    order: 13,
+    title: "Mergulho em paralelas (dips)",
+    equipment: "paralelas ou duas cadeiras firmes",
+    muscles: ["tríceps", "peitoral", "ombros"],
+    sets: "3x6-10",
+    instructions:
+      "Apoiado nas paralelas, desça flexionando os cotovelos até 90° e empurre de volta mantendo o tronco levemente inclinado.",
+    commonMistakes: "Descer demais forçando o ombro; encolher os ombros na subida.",
+  },
+  {
+    slug: "cal-pike-push-up",
+    level: "intermediario",
+    order: 14,
+    title: "Pike push-up",
+    description: "Prepara o ombro para o handstand push-up.",
+    equipment: "colchonete",
+    muscles: ["ombros", "tríceps"],
+    sets: "3x6-10",
+    instructions:
+      "Em V invertido (quadril alto), flexione os cotovelos levando o topo da cabeça em direção ao chão.",
+    commonMistakes: "Perder o V invertido virando flexão comum; amplitude curta.",
+  },
+  {
+    slug: "cal-prancha-elevacao-perna",
+    level: "intermediario",
+    order: 15,
+    title: "Prancha com elevação de perna",
+    equipment: "colchonete",
+    muscles: ["core", "glúteos"],
+    sets: "3x10 por lado",
+    instructions:
+      "Na prancha, eleve uma perna estendida sem girar o quadril, mantenha e alterne.",
+    commonMistakes: "Girar o quadril ao levantar a perna; perder a linha da prancha.",
+  },
+  {
+    slug: "cal-agachamento-bulgaro",
+    level: "intermediario",
+    order: 16,
+    title: "Agachamento búlgaro",
+    equipment: "banco ou cadeira",
+    muscles: ["quadríceps", "glúteos"],
+    sets: "3x10 por perna",
+    instructions:
+      "Pé de trás apoiado elevado, desça verticalmente sobre a perna da frente até a coxa quase paralela.",
+    commonMistakes: "Joelho da frente instável para além da ponta do pé; tronco caindo à frente.",
+  },
+  {
+    slug: "cal-l-sit-tuck",
+    level: "intermediario",
+    order: 17,
+    title: "L-sit progressão (tuck)",
+    equipment: "paralelas ou chão com apoio",
+    muscles: ["core", "flexores de quadril"],
+    sets: "3x10-20s",
+    instructions:
+      "Apoiado nas mãos, eleve o quadril do chão com os joelhos flexionados junto ao peito.",
+    commonMistakes: "Ombros encolhidos em vez de pressionados para baixo; prender a respiração.",
+  },
+  {
+    slug: "cal-negativa-muscle-up",
+    level: "intermediario",
+    order: 18,
+    title: "Negativa de muscle-up",
+    equipment: "barra fixa",
+    muscles: ["costas", "peitoral", "tríceps"],
+    sets: "3x3-5 (descida lenta)",
+    instructions:
+      "A partir do apoio acima da barra (com ajuda de salto ou banco), desça devagar controlando a transição até pendurar.",
+    commonMistakes: "Descer rápido na fase de transição; não engajar o core na descida.",
+  },
+
+  // Avançado — movimentos de skill completos
+  {
+    slug: "cal-muscle-up",
+    level: "avancado",
+    order: 19,
+    title: "Muscle-up completo",
+    equipment: "barra fixa",
+    muscles: ["costas", "peitoral", "tríceps"],
+    sets: "3x3-5",
+    instructions:
+      "Puxe explosivo até passar o peito da barra e empurre para cima em apoio, sem balançar as pernas.",
+    commonMistakes: "Kipping excessivo; transição incompleta batendo a barra na barriga.",
+  },
+  {
+    slug: "cal-handstand-push-up",
+    level: "avancado",
+    order: 20,
+    title: "Handstand push-up (na parede)",
+    equipment: "parede + colchonete",
+    muscles: ["ombros", "tríceps"],
+    sets: "3x5-8",
+    instructions:
+      "Em parada de mão apoiado na parede, flexione os cotovelos descendo a cabeça até quase tocar o chão e empurre de volta.",
+    commonMistakes: "Perder o alinhamento do quadril; descer rápido sem controle.",
+  },
+  {
+    slug: "cal-front-lever-tuck",
+    level: "avancado",
+    order: 21,
+    title: "Front lever (tuck)",
+    equipment: "barra fixa",
+    muscles: ["costas", "core"],
+    sets: "3x10-15s",
+    instructions:
+      "Pendurado, leve os joelhos ao peito e incline o corpo até ficar paralelo ao chão, com as escápulas ativas.",
+    commonMistakes: "Relaxar as escápulas (deixar cair); abrir o quadril cedo demais.",
+  },
+  {
+    slug: "cal-pistol-squat",
+    level: "avancado",
+    order: 22,
+    title: "Pistol squat",
+    equipment: "cadeira de apoio (opcional)",
+    muscles: ["quadríceps", "glúteos", "equilíbrio"],
+    sets: "3x5 por perna",
+    instructions:
+      "Em uma perna, desça controlando o equilíbrio com a outra perna estendida à frente até o máximo de amplitude possível.",
+    commonMistakes: "Perder o equilíbrio por descer rápido; calcanhar saindo do chão.",
+  },
+  {
+    slug: "cal-flexao-arqueiro",
+    level: "avancado",
+    order: 23,
+    title: "Flexão arqueiro",
+    equipment: "colchonete",
+    muscles: ["peitoral", "tríceps", "ombros"],
+    sets: "3x6-8 por lado",
+    instructions:
+      "Mãos bem afastadas, desça deslocando o peso para um lado mantendo o outro braço estendido lateralmente.",
+    commonMistakes: "Girar o quadril; não descer o suficiente do lado de trabalho.",
+  },
+  {
+    slug: "cal-human-flag-progressao",
+    level: "avancado",
+    order: 24,
+    title: "Human flag (progressão apoiada)",
+    equipment: "poste ou barra vertical",
+    muscles: ["core", "ombros", "dorsais"],
+    sets: "3x5-10s",
+    instructions:
+      "Segure a barra vertical com uma mão em cima e outra embaixo, tente sustentar o corpo na horizontal com apoio parcial dos pés.",
+    commonMistakes: "Tentar a versão completa cedo demais sem base de core; pegada instável.",
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Execução
 // ---------------------------------------------------------------------------
 
 async function main() {
   const db = await getDb();
+
+  const [{ value: existingLessons }] = await db
+    .select({ value: count() })
+    .from(calisthenicsLessons);
+  if (existingLessons === 0) {
+    console.log("Inserindo roadmap de calistenia (24 aulas)…");
+    await db.insert(calisthenicsLessons).values(
+      CALISTHENICS_LESSONS.map((l) => ({
+        slug: l.slug,
+        level: l.level,
+        order: l.order,
+        title: l.title,
+        description: l.description,
+        equipment: l.equipment,
+        muscles: l.muscles,
+        sets: l.sets,
+        instructions: l.instructions,
+        commonMistakes: l.commonMistakes,
+      })),
+    );
+  }
+
   const [{ value: existing }] = await db.select({ value: count() }).from(exercises);
   const reseedProgram = process.env.RESEED_PROGRAM === "1";
   if (existing > 0 && !reseedProgram) {

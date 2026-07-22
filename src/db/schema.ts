@@ -292,6 +292,47 @@ export const personalRecords = pgTable("personal_records", {
 });
 
 // ---------------------------------------------------------------------------
+// Calistenia (roadmap por nível, sem periodização — o usuário avança no ritmo dele)
+// ---------------------------------------------------------------------------
+
+export const calisthenicsLevel = pgEnum("calisthenics_level", [
+  "iniciante",
+  "intermediario",
+  "avancado",
+]);
+
+export const calisthenicsLessons = pgTable("calisthenics_lessons", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  level: calisthenicsLevel("level").notNull(),
+  order: integer("order").notNull(), // ordem global no roadmap (cross-nível)
+  title: text("title").notNull(),
+  description: text("description"),
+  equipment: text("equipment"), // "barra fixa", "paralelas ou cadeiras", "elástico"…
+  muscles: text("muscles").array().notNull().default([]),
+  sets: text("sets"), // "3x20-30s", "4x8-12"…
+  instructions: text("instructions"),
+  commonMistakes: text("common_mistakes"),
+  videoUrl: text("video_url"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const calisthenicsProgress = pgTable(
+  "calisthenics_progress",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    lessonId: integer("lesson_id")
+      .notNull()
+      .references(() => calisthenicsLessons.id, { onDelete: "cascade" }),
+    completedAt: timestamp("completed_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("calisthenics_user_lesson").on(t.userId, t.lessonId)],
+);
+
+// ---------------------------------------------------------------------------
 // Diário, corpo e nutrição
 // ---------------------------------------------------------------------------
 
