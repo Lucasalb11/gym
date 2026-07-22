@@ -44,3 +44,6 @@ next-env.d.ts
 .pglite
 .uploads
 !.env.example
+
+# claude code: local worktrees (each is its own git checkout, never commit)
+.claude/worktrees/
