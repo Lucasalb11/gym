@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { VideoEmbed } from "@/components/video-embed";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { cn } from "@/lib/utils";
 import {
@@ -475,14 +476,12 @@ function ExerciseCard({
               </p>
             )}
             {item.exercise.videoUrl && (
-              <a
-                href={item.exercise.videoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex min-h-10 items-center gap-1 rounded-lg text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                ▶ Ver vídeo da técnica
-              </a>
+              <div className="mt-3">
+                <VideoEmbed
+                  url={item.exercise.videoUrl}
+                  title={item.exercise.name}
+                />
+              </div>
             )}
           </div>
         )}

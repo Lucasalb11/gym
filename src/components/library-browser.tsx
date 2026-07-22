@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { VideoEmbed } from "@/components/video-embed";
 import { cn } from "@/lib/utils";
 
 type Exercise = {
@@ -217,14 +218,7 @@ export function LibraryBrowser({ exercises }: { exercises: Exercise[] }) {
                   </p>
                 )}
                 {selected.videoUrl && (
-                  <a
-                    href={selected.videoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-h-10 items-center gap-1 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    ▶ Ver vídeo da técnica
-                  </a>
+                  <VideoEmbed url={selected.videoUrl} title={selected.name} />
                 )}
               </div>
             </>
